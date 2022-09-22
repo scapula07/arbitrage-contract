@@ -77,15 +77,15 @@ contract ArbitrageBot {
   }
 
      // for uniswap
-  function swapExactInputSingle(ISwapRouter _swapRouter,address _tokenIn, address _tokenOut,uint256 _amountIn) internal returns (uint256 amountOut) {
-      
+  function uniDAIWETHswapExactInputSingle(address _tokenIn, address _tokenOut) public  returns (uint256 amountOut) {
+      uint _amountIn = IERC20Minimal(_tokenIn).balanceOf(address(this));
 
       // Transfer the specified amount of DAI to this contract.
      // TransferHelper.safeTransferFrom(_tokenIn, msg.sender, address(this), _amountIn);
 
       // Approve the router to spend DAI.
-      TransferHelper.safeApprove(_tokenIn, address(_swapRouter), _amountIn);
-        IERC20Minimal(_tokenIn).allowance(address(this), address(_swapRouter));
+      TransferHelper.safeApprove(_tokenIn, address(swapRouter), _amountIn);
+        IERC20Minimal(_tokenIn).allowance(address(this), address(swapRouter));
       // Naively set amountOutMinimum to 0. In production, use an oracle or other data source to choose a safer value for amountOutMinimum.
       // We also set the sqrtPriceLimitx96 to be 0 to ensure we swap our exact input amount.
       ISwapRouter.ExactInputSingleParams memory params =
@@ -101,56 +101,81 @@ contract ArbitrageBot {
           });
 
       // The call to `exactInputSingle` executes the swap.
-      amountOut = _swapRouter.exactInputSingle(params);
+      amountOut = swapRouter.exactInputSingle(params);
   }
+   
+    function uniWETHDAIswapExactInputSingle(address _tokenIn, address _tokenOut) public  returns (uint256 amountOut) {
+      uint _amountIn = IERC20Minimal(_tokenIn).balanceOf(address(this));
+
+      // Transfer the specified amount of DAI to this contract.
+     // TransferHelper.safeTransferFrom(_tokenIn, msg.sender, address(this), _amountIn);
+
+      // Approve the router to spend DAI.
+      TransferHelper.safeApprove(_tokenIn, address(swapRouter), _amountIn);
+        IERC20Minimal(_tokenIn).allowance(address(this), address(swapRouter));
+      // Naively set amountOutMinimum to 0. In production, use an oracle or other data source to choose a safer value for amountOutMinimum.
+      // We also set the sqrtPriceLimitx96 to be 0 to ensure we swap our exact input amount.
+      ISwapRouter.ExactInputSingleParams memory params =
+          ISwapRouter.ExactInputSingleParams({
+              tokenIn: _tokenIn,
+              tokenOut: _tokenOut,
+              fee: poolFee,
+              recipient: address(this),
+              deadline: block.timestamp + deadline,
+              amountIn:_amountIn,
+              amountOutMinimum:0,
+              sqrtPriceLimitX96: 0
+          });
+
+      // The call to `exactInputSingle` executes the swap.
+      amountOut = swapRouter.exactInputSingle(params);
+  }
+
+
+
+
       // for sushiswap
   
-	function SushiswapToken(address _router, address _tokenIn, address _tokenOut, uint256 _amountIn) private {
-	   TransferHelper.safeApprove(_tokenIn, address(_router), _amountIn);
-        IERC20Minimal(_tokenIn).allowance(address(this), address(_router));
-		address[] memory path;
-		path = new address[](2);
-		path[0] = _tokenIn;
-		path[1] = _tokenOut;
-      
 	
-		IUniswapV2Router02(_router).swapExactTokensForETH(_amountIn,0, path, address(this), block.timestamp + deadline);
-	}
-    function swapToken(address _router, address _tokenIn, address _tokenOut, uint256 _amountIn) private {
-		IERC20Minimal(_tokenIn).approve(_router, _amountIn);
-		address[] memory path;
-		path = new address[](2);
-		path[0] = _tokenIn;
-		path[1] = _tokenOut;
-	
-		IUniswapV2Router02(_router).swapExactTokensForTokens(_amountIn, getAmountOutMin(_router,_tokenIn,_tokenOut,_amountIn), path, address(this), block.timestamp + deadline);
-	}
+
+    function sushiDAIWETHswapToken(address _tokenIn, address _tokenOut) public  {
+      uint _amountIn = IERC20Minimal(_tokenIn).balanceOf(address(this));
+          IERC20Minimal(_tokenIn).approve(Router2, _amountIn);
+          
+          address[] memory path;
+          path = new address[](2);
+          path[0] = _tokenIn;
+          path[1] = _tokenOut;
+        
+          IUniswapV2Router02(Router2).swapExactTokensForTokens(_amountIn, getAmountOutMin(Router2,_tokenIn,_tokenOut,_amountIn), path, address(this), block.timestamp + deadline);
+        }
+
+    function sushiWETHDAIswapToken(address _tokenIn, address _tokenOut) public  {
+      uint _amountIn = IERC20Minimal(_tokenIn).balanceOf(address(this));
+          IERC20Minimal(_tokenIn).approve(Router2, _amountIn);
+          
+          address[] memory path;
+          path = new address[](2);
+          path[0] = _tokenIn;
+          path[1] = _tokenOut;
+        
+          IUniswapV2Router02(Router2).swapExactTokensForTokens(_amountIn, getAmountOutMin(Router2,_tokenIn,_tokenOut,_amountIn), path, address(this), block.timestamp + deadline);
+        }
 
    function UniswapToSushiwapTrade(address _token1, address _token2) external onlyOwner {
-        uint startBalance = IERC20Minimal(_token1).balanceOf(address(this));
-        uint token2InitialBalance = IERC20Minimal(_token2).balanceOf(address(this));
-        
-        swapExactInputSingle(swapRouter,_token1, _token2,startBalance);
-        uint token2Balance = IERC20Minimal(_token2).balanceOf(address(this));
-        uint tradeableAmount = token2Balance - token2InitialBalance;
-        swapToken(Router2,_token2, _token1,tradeableAmount);
-        uint endBalance = IERC20Minimal(_token1).balanceOf(address(this));
-      // require(endBalance > startBalance, "Trade Reverted, No Profit Made");
-       profit= endBalance -startBalance;
-       emit TradeSucces(assest,base,profit,true);
+        uniDAIWETHswapExactInputSingle( _token1,_token2);
+        sushiWETHDAIswapToken(_token2,_token1);
+      //   uint endBalance = IERC20Minimal(_token1).balanceOf(address(this));
+      // // require(endBalance > startBalance, "Trade Reverted, No Profit Made");
+      //  profit= endBalance -startBalance;
+      //  emit TradeSucces(assest,base,profit,true);
    }
     function SushiwapToUniswapTrade(address _token1, address _token2) external onlyOwner {
-        uint startBalance = IERC20Minimal(_token1).balanceOf(address(this));
-        uint token2InitialBalance = IERC20Minimal(_token2).balanceOf(address(this));
-        
-        swapToken(Router2,_token1, _token2, startBalance);
-        uint token2Balance = IERC20Minimal(_token2).balanceOf(address(this));
-        uint tradeableAmount = token2Balance - token2InitialBalance;
-       swapExactInputSingle(swapRouter,_token2, _token1,tradeableAmount);
-        uint endBalance = IERC20Minimal(_token1).balanceOf(address(this));
-      // require(endBalance > startBalance, "Trade Reverted, No Profit Made");
-       profit= endBalance -startBalance;
-       emit TradeSucces(assest,base,profit,true);
+       sushiDAIWETHswapToken(_token1,_token2);
+        uniWETHDAIswapExactInputSingle(_token2,_token1);
+      // // require(endBalance > startBalance, "Trade Reverted, No Profit Made");
+      //  profit= endBalance -startBalance;
+      //  emit TradeSucces(assest,base,profit,true);
    }
 
      function getBalance (address _tokenContractAddress) external view  returns (uint256) {
